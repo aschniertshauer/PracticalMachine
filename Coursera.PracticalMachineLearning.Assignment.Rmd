@@ -4,6 +4,12 @@ author: "Alexander Schniertshauer"
 date: "20. Februar 2016"
 output: html_document
 ---
+## Github Link
+
+To view the files required use following github link:
+
+https://github.com/aschniertshauer/PracticalMachine
+
 
 ## Background and Goal
 
@@ -191,6 +197,4 @@ predrf<-predict(rfmod,newdata = testing)
 data.frame(problem_id=testing$problem_id,classe=predrf)
 ```
 
-
-```
 
