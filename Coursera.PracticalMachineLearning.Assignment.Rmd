@@ -1,0 +1,196 @@
+---
+title: "Practical Machine Learning - Assignment"
+author: "Alexander Schniertshauer"
+date: "20. Februar 2016"
+output: html_document
+---
+
+## Background and Goal
+
+The use of devices such as Jawbone Up, Nike FuelBand, and Fitbit is an essential element of the quantified self movement. Beside quantifying how much of a particular activity people do and importnant aspect is to understand how well they do it. The goal of our project relates to the second point. 
+
+Six participants in a study have been asked to perform barbell lifts correctly and incorrectly in five different ways. Using accelerometers on the belt, forearm, arm, and dumbell of the participants varipus measures have been captured. Based on these acclerometer measuring we need to to predict the manner in which people did the exercise which is captured in the "classe" variable.
+
+The data to do this prediction/classification job are available in the internet. They have been splitted into a training data set (containing accelerometer measures and classe variable) and a test data set (just containing accelerometer measures).
+
+## Packages
+
+In a first step we will load the packages required in our analysis.
+
+```{r message=FALSE,warning=FALSE}
+library(caret)
+library(dplyr)
+library(corrplot)
+library(lubridate)
+library(rattle)
+library(randomForest)
+library(doMC)
+
+```
+
+## Data
+
+The data provided consist of a training and testing data set that can be downloaded from the Internet.For both data sets we delete the first attribute which is simply the row number.
+
+```{r }
+setwd("~/Dropbox/Coursera/PracticalMachineLearning")
+
+
+download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv","training.csv",method="curl")
+download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv","testing.csv",method="curl")
+
+training<-read.csv("training.csv",stringsAsFactors = F,na.strings=c("NA","","#DIV/0!"))
+testing<-read.csv("testing.csv",stringsAsFactors = F,na.strings=c("NA","","#DIV/0!"))
+
+training<-training[,-1]
+testing<-testing[,-1]
+```
+
+## Exploring and Pre-Processing Data
+
+In a first step we identify attributes that have only NA values in the testing data set and delete them from the testing and training data set.
+
+```{r}
+noval<-apply(testing,2,function(x)all(!is.na(x)))
+table(noval)
+testing<-testing[,noval]
+training<-training[,noval]
+```
+
+Then we look for with help of caret's pre-processing capabilities for attributes in the training data set with almost zero variance and delete also these attributes from the training and testing data set.
+
+```{r}
+nearzero <- nearZeroVar(training, saveMetrics=TRUE)
+training <- training[,nearzero$nzv==FALSE]
+testing <- testing[,nearzero$nzv==FALSE]
+```
+
+We delete the timestamp as this is already included in the raw_timestamp (and because it shouldn't have an impact at all on the classification task we need to solve).
+
+```{r}
+training<-training %>% select(-cvtd_timestamp)
+testing<-testing %>% select(-cvtd_timestamp)
+```
+
+Last but not least we look for correlations between the remaining attributes and plot them.
+
+```{r}
+nums <- sapply(training, is.numeric)
+training_num<-training[,nums]
+training_cor<-cor(training_num)
+corrplot(training_cor,tl.cex = 0.6,tl.col = "black",order = "hclust")
+```
+
+We finally split the training data in a training and a validation data set. We will use the validation set to cross check the model findings that will be derived solely on the (remaining) training data.
+
+```{r}
+set.seed(1234)
+inTrain<-createDataPartition(training$classe,p=0.4,list=F)
+validation<-training[-inTrain,]
+training<-training[inTrain,]
+```
+
+
+## Select Forecasting Model and Parameters based on Training Set
+
+### General Process
+
+In this step we will determine based on bootstrap resampling (the default method of caret) which forecasting method to choose and  what parameter this method will take when applying it.
+
+We will compare three prediction models:
+
+* Decision Trees (CART)
+* Linear Discriminant Analysis
+* Random Forests
+
+To speed up the process of bootstrapping we use parallel computing.
+
+```{r}
+registerDoMC(cores = 4)
+
+```
+
+
+### Simple Decision Tree
+
+As a first model we build a simple decision tree (CART).
+
+```{r }
+set.seed(1234)
+treemod<-train(as.factor(classe)~.,data=training,method="rpart")
+```
+
+We plot the resulting model using rattle's `fancyRpartPlot` function
+
+```{r}
+fancyRpartPlot(treemod$finalModel)
+```
+
+And we check the results of the model
+
+```{r}
+treemod
+```
+
+### LDA - Linear Discriminant Analysis
+
+As a second model we use Linear Discriminant Analysis - an approach that often yields good results.
+
+```{r }
+set.seed(1234)
+ldamod<-train(as.factor(classe)~.,data=training,method="lda")
+
+```
+
+
+```{r}
+ldamod
+```
+
+
+### Random Forest
+
+Last but not least we will try Random Forests. A method developed by Leo Breiman. As we have learned in the course Random Forests implement bagging and have been very successfully applied - for example in Kaggle's prediction challenges.
+
+```{r }
+set.seed(1234)
+grid_rf <- expand.grid(mtry = c(2, 4, 8))
+rfmod<-train(as.factor(classe)~.,data=training,method="parRF",tuneGrid = grid_rf)
+```
+
+```{r}
+rfmod
+```
+
+
+```{r}
+plot(rfmod)
+```
+
+Based on a bootstrap resampling approach we can estimate that the Random Forest with an mtry of 8 will yield by far the best accuracy.
+
+## Evaluate Resulting Model on Validation Set
+
+As the Random Forest has been the best model based on the resampled bootstraps of the training set we choose this model (which has an mtry of 8) and test its accuracy now on the remaining validation hold out.
+
+```{r}
+
+predrf<-predict(rfmod,newdata = validation)
+postResample(predrf,as.factor(validation$classe))
+
+```
+
+As we see the evaluation confirms the accuracy estimate of the bootstrap on the training data.
+
+## Predict Test Data
+
+So we can now - in a last step - apply the model to the testing data set to predict the classe for these data.
+
+```{r}
+predrf<-predict(rfmod,newdata = testing)
+data.frame(problem_id=testing$problem_id,classe=predrf)
+```
+
+
+```
+
