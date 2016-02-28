@@ -63,7 +63,7 @@ testing<-testing[,noval]
 training<-training[,noval]
 ```
 
-Then we look for with help of caret's pre-processing capabilities for attributes in the training data set with almost zero variance and delete also these attributes from the training and testing data set.
+Then we look with help of caret's pre-processing capabilities for attributes in the training data set with almost zero variance and delete also these attributes from the training and testing data set.
 
 ```{r}
 nearzero <- nearZeroVar(training, saveMetrics=TRUE)
@@ -87,11 +87,11 @@ training_cor<-cor(training_num)
 corrplot(training_cor,tl.cex = 0.6,tl.col = "black",order = "hclust")
 ```
 
-We finally split the training data in a training and a validation data set. We will use the validation set to cross check the model findings that will be derived solely on the (remaining) training data.
+We finally split the training data in a (smaller) training and a validation data set. We will use the validation set to cross check the model findings that will be derived solely on the (smaller/remaining) training data.
 
 ```{r}
 set.seed(1234)
-inTrain<-createDataPartition(training$classe,p=0.4,list=F)
+inTrain<-createDataPartition(training$classe,p=0.6,list=F)
 validation<-training[-inTrain,]
 training<-training[inTrain,]
 ```
@@ -173,7 +173,8 @@ rfmod
 plot(rfmod)
 ```
 
-Based on a bootstrap resampling approach we can estimate that the Random Forest with an mtry of 8 will yield by far the best accuracy.
+Based on caret's bootstrap resampling approach we can estimate that the Random Forest with an mtry of 8 will yield by far the best accuracy. While for the simple decision tree the estimated accuracy is ca. 49% and for the LDA it is ca. 74% it the Random Forest yielded an estimated accuracy of more than 99 %.
+
 
 ## Evaluate Resulting Model on Validation Set
 
